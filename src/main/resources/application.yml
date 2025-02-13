@@ -1,0 +1,15 @@
+spring:
+  profiles:
+    include: secret
+    default: local
+
+  jpa:
+    properties:
+      hibernate:
+        # show_sql: true
+        format_sql: true
+
+logging.level:
+  org.hibernate.SQL: debug
+#  org.hibernate.type: trace #??? ?? 2.x, hibernate5
+  org.hibernate.orm.jdbc.bind: trace #??? ?? 3.x,
