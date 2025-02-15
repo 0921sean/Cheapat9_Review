@@ -1,55 +1,70 @@
 package powersell.cheapat9.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import powersell.cheapat9.domain.Item;
-import powersell.cheapat9.domain.Order;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.web.bind.annotation.*;
 import powersell.cheapat9.domain.OrderStatus;
-import powersell.cheapat9.form.OrderForm;
-import powersell.cheapat9.service.ItemService;
+import powersell.cheapat9.dto.order.OrderRequestDto;
+import powersell.cheapat9.dto.order.OrderResponseDto;
+import powersell.cheapat9.exception.NotEnoughStockException;
 import powersell.cheapat9.service.OrderService;
 
-import java.time.LocalDateTime;
+import java.util.List;
 
-@Controller
+@RestController
 @RequiredArgsConstructor
+@RequestMapping("/api/orders")
 public class OrderController {
 
     private final OrderService orderService;
-    private final ItemService itemService;
+    private final PasswordEncoder passwordEncoder;  // 비밀번호 매칭 위함
 
-    @GetMapping("/items/{itemId}/order")
-    public String createForm(@PathVariable("itmeId") Long itemId, Model model) {
-
-        model.addAttribute("form", new OrderForm());
-        return "orders/createOrderForm";
+    /**
+     * 주문 생성
+     */
+    @PostMapping
+    public ResponseEntity<Long> createOrder(@RequestBody @Valid OrderRequestDto requestDto) {
+        Long orderId = orderService.saveOrder(requestDto);
+        return ResponseEntity.ok(orderId);
     }
 
-    @PostMapping("/items/{itemId}/order")
-    public String create(@PathVariable("itemId") Long itemId, @ModelAttribute("form") OrderForm form) {
+    /**
+     * 주문 상태 변경
+     */
+    @PatchMapping("/{id}/status")
+    public ResponseEntity<Void> updateOrderStatus(@PathVariable Long id, @RequestParam String status) {
+        OrderStatus orderStatus = OrderStatus.valueOf(status);
+        orderService.updateOrderStatus(id, orderStatus);
+        return ResponseEntity.ok().build();
+    }
 
-        Item item = itemService.findOne(itemId);
+    /**
+     * 개별 주문 조회 (비밀번호 검증 포함)
+     */
+    @PostMapping("/detail")
+    public ResponseEntity<List<OrderResponseDto>> getOrdersByNumber(@RequestBody @Valid OrderRequestDto requestDto) {
+        List<OrderResponseDto> orders = orderService.findAllOrdersByNumber(requestDto.getNumber())
+                .stream()
+                .filter(order -> passwordEncoder.matches(requestDto.getPw(), order.getPw()))
+                .toList();
+        return ResponseEntity.ok(orders);
+    }
 
-        Order order = new Order();
-        order.setItem(item);
-        order.setCount(form.getCount());
-        order.setName(form.getName());
-        order.setNumber(form.getNumber());
-        order.setZipcode(form.getZipcode());
-        order.setAddress(form.getAddress());
-        order.setDongho(form.getDongho());
-        order.setPw(form.getPw());
-        order.setStatus(OrderStatus.WAITING);   // 기본이 '입금 전' 상태
-        order.setOrderDate(LocalDateTime.now());
-        order.setOrderPrice(item.getPrice() * order.getCount());
-        itemService.updateStock(item, order.getCount());
+    /**
+     * 전체 주문 조회 (관리자용)
+     */
+    @GetMapping("/admin")
+    public ResponseEntity<List<OrderResponseDto>> getAllOrders() {
+        return ResponseEntity.ok(orderService.findAllOrders());
+    }
 
-        orderService.saveOrder(order);
-        return "redirect:/";
+    /**
+     * 예외 처리 (재고 부족)
+     */
+    @ExceptionHandler(NotEnoughStockException.class)
+    public ResponseEntity<String> handleNotEnoughStockException(NotEnoughStockException e) {
+        return ResponseEntity.badRequest().body(e.getMessage());
     }
 }

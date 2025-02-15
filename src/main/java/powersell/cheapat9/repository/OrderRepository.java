@@ -2,34 +2,32 @@ package powersell.cheapat9.repository;
 
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 import powersell.cheapat9.domain.Order;
 
 import java.util.List;
 
 @Repository
-@RequiredArgsConstructor
-public class OrderRepository {
+public interface OrderRepository extends JpaRepository<Order, Long> {
 
-    private final EntityManager em;
+    /**
+     * 특정 ID로 주문 조회
+     */
+    @Query("SELECT o FROM Order o JOIN FETCH o.item WHERE o.id = :id")
+    Order findByIdWithItem(@Param("id") Long id);
 
-    public void save(Order order) { em.persist(order); }
+    /**
+     * 모든 주문 조회 (상품과 함께 페치 조인)
+     */
+    @Query("SELECT o FROM Order o JOIN FETCH o.item")
+    List<Order> findAllWithItems();
 
-    public Order findOne(Long id) { return em.find(Order.class, id); }
-
-    public List<Order> findAll() {
-        return em.createQuery(
-                "select o from Order o" +
-                        " join fetch o.item i", Order.class)
-                .getResultList();
-    }
-
-    public List<Order> findAllByNumber(String number) {
-        return em.createQuery(
-                "select o from Order o" +
-                        " join fetch o.item" +
-                        " where o.number = :number", Order.class)
-                .setParameter("number", number)
-                .getResultList();
-    }
+    /**
+     * 전화번호로 주문 조회
+     */
+    @Query("SELECT o FROM Order o JOIN FETCH o.item WHERE o.number = :number")
+    List<Order> findAllByNumber(@Param("number") String number);
 }

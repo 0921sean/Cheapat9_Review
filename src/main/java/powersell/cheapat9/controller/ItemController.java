@@ -1,15 +1,14 @@
 package powersell.cheapat9.controller;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
-import powersell.cheapat9.domain.Item;
-import powersell.cheapat9.form.ItemForm;
+import powersell.cheapat9.dto.item.ItemRequestDto;
+import powersell.cheapat9.dto.item.ItemResponseDto;
 import powersell.cheapat9.service.ItemService;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @RestController
 @RequiredArgsConstructor
@@ -22,38 +21,41 @@ public class ItemController {
      * 전체 상품 조회
      */
     @GetMapping
-    public ResponseEntity<List<ItemDto>> getItems() {
-        List<Item> items = itemService.findItems();
-        List<ItemDto> result = items.stream()
-                .map(ItemDto::new)
-                .collect(Collectors.toList());
-        return ResponseEntity.ok(result);
+    public ResponseEntity<List<ItemResponseDto>> getAllItems() {
+        return ResponseEntity.ok(itemService.findAllItems());
     }
 
-    @GetMapping("/items/new")
-    public String createForm(Model model) {
-        model.addAttribute("form", new ItemForm());
-        return "items/createItemForm";
+    /**
+     * 개별 상품 조회
+     */
+    @GetMapping("/{id}")
+    public ResponseEntity<ItemResponseDto> getItem(@PathVariable Long id) {
+        return ResponseEntity.ok(itemService.findItem(id));
     }
 
-    @PostMapping("/items/new")
-    public String create(ItemForm form) {
-        Item item = new Item();
-        item.setName(form.getName());
-        item.setOriginalPrice(form.getOriginalPrice());
-        item.setPrice(form.getPrice());
-        item.setDiscountRate((form.getOriginalPrice() - form.getPrice()) * 100 / form.getOriginalPrice());
-        item.setStockQuantity(form.getStockQuantity());
-
-        itemService.saveItem(item);
-        return "redirect:/";
+    /**
+     * 상품 추가
+     */
+    @PostMapping
+    public ResponseEntity<Long> createItem(@RequestBody @Valid ItemRequestDto requestDto) {
+        return ResponseEntity.ok(itemService.saveItem(requestDto));
     }
 
-    @PostMapping("/items/{itemId}/detail")
-    public String itemDetailForm(@PathVariable("itemId") Long itemId, Model model) {
-        Item item = itemService.findOne(itemId);
+    /**
+     * 상품 수정
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<Void> updateItem(@PathVariable Long id, @RequestBody @Valid ItemRequestDto requestDto) {
+        itemService.updateItem(id, requestDto);
+        return ResponseEntity.ok().build();
+    }
 
-        model.addAttribute("item", item);
-        return "items/detailItemForm";
+    /**
+     * 상품 재고 수정
+     */
+    @PatchMapping("/{id}/stock")
+    public ResponseEntity<Void> updateItemStock(@PathVariable Long id, @RequestParam int quantity) {
+        itemService.updateItemStock(id, quantity);
+        return ResponseEntity.ok().build();
     }
 }

@@ -6,57 +6,95 @@ import org.springframework.transaction.annotation.Transactional;
 import powersell.cheapat9.domain.Item;
 import powersell.cheapat9.domain.Order;
 import powersell.cheapat9.domain.OrderStatus;
+import powersell.cheapat9.dto.order.OrderRequestDto;
+import powersell.cheapat9.dto.order.OrderResponseDto;
 import powersell.cheapat9.repository.OrderRepository;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 @Service
-@Transactional(readOnly = true)
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class OrderService {
 
     private final OrderRepository orderRepository;
     private final ItemService itemService;
 
     /**
-     * 주문
+     * 주문 저장
      */
     @Transactional
-    public Long saveOrder(Order order) {
+    public Long saveOrder(OrderRequestDto requestDto) {
+        Item item = itemService.getItem(requestDto.getItemId());
+
+        Order order = Order.createOrder(
+                item,
+                requestDto.getCount(),
+                requestDto.getName(),
+                requestDto.getNumber(),
+                requestDto.getZipcode(),
+                requestDto.getAddress(),
+                requestDto.getDongho(),
+                requestDto.getPw()
+        );
+
         orderRepository.save(order);
+        itemService.updateItemStock(item.getId(), requestDto.getCount());
+
         return order.getId();
     }
 
     /**
-     * 주문 검색
+     * 전체 주문 조회
      */
-    @Transactional
-    public List<Order> findOrders() { return orderRepository.findAll(); }
-    public List<Order> findOrdersByNumber(String number) { return orderRepository.findAllByNumber(number); }
-
-    public Order findOne(Long id) { return orderRepository.findOne(id); }
-
-    /**
-     * 주문 수정
-     */
-    @Transactional
-    public void update(Long id, OrderStatus orderStatus) {
-        Order order = orderRepository.findOne(id);
-        order.setStatus(orderStatus);
+    public List<OrderResponseDto> findAllOrders() {
+        return orderRepository.findAllWithItems().stream()
+                .map(OrderResponseDto::new)
+                .collect(Collectors.toList());
     }
 
     /**
-     * 주문 추가
+     * 개별 주문 조회
+     */
+    public OrderResponseDto findOrder(Long id) {
+        Order order = orderRepository.findByIdWithItem(id);
+        return new OrderResponseDto(order);
+    }
+
+    /**
+     * 전화번호로 주문 조회
+     */
+    public List<OrderResponseDto> findAllOrdersByNumber(String number) {
+        return orderRepository.findAllByNumber(number).stream()
+                .map(OrderResponseDto::new)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * 주문 상태 변경
      */
     @Transactional
-    public Long createOrderAndModifyStock(Long itemId, Order order) {
-        Item item = itemService.findOne(itemId);
+    public void updateOrderStatus(Long id, OrderStatus orderStatus) {
+        Order order = orderRepository.findByIdWithItem(id);
+        order.updateOrderStatus(orderStatus);
+    }
 
-        order.setItem(item);
-        order.setOrderPrice(item.getPrice() * order.getCount());
-        itemService.updateStock(item, order.getCount());
+    /**
+     * 주문 정보 수정
+     */
+    @Transactional
+    public void updateOrder(Long id, OrderRequestDto requestDto) {
+        Order order = orderRepository.findByIdWithItem(id);
 
-        orderRepository.save(order);
-        return order.getId();
+        order.updateOrder(
+                requestDto.getCount(),
+                requestDto.getName(),
+                requestDto.getNumber(),
+                requestDto.getZipcode(),
+                requestDto.getAddress(),
+                requestDto.getDongho(),
+                requestDto.getPw()
+        );
     }
 }

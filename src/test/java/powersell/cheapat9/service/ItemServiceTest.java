@@ -3,156 +3,162 @@ package powersell.cheapat9.service;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.transaction.annotation.Transactional;
-import powersell.cheapat9.domain.Item;
+import powersell.cheapat9.dto.item.ItemRequestDto;
+import powersell.cheapat9.dto.item.ItemResponseDto;
 import powersell.cheapat9.exception.NotEnoughStockException;
-import powersell.cheapat9.repository.ItemRepository;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
+@TestPropertySource(properties = "admin.password=test1234")
 @Transactional
 public class ItemServiceTest {
 
     @Autowired ItemService itemService;
-    @Autowired ItemRepository itemRepository;
 
     /**
      * 1. 상품 저장 테스트
      */
     @Test
     public void saveItemTest() {
-        //given
-        Item item = new Item();
-        item.setName("Egg");
-        item.setOriginalPrice(4000);
-        item.setPrice(800);
-        item.setDiscountRate(80);
-        item.setStockQuantity(20);
-        item.setStartDate(LocalDateTime.now());
-        item.setEndDate(LocalDateTime.now().plusDays(10));
-
-        // when
-        Long savedItemId = itemService.saveItem(item);
-        Item savedItem = itemService.findOne(savedItemId);
-
-        // then
-        assertNotNull(savedItem);
-        assertEquals("Egg", savedItem.getName());
-    }
-
-    /**
-     * 2. 상품 조회 테스트
-     */
-    @Test
-    public void findOneTest() {
         // given
-        Item item = new Item();
-        item.setName("CupRice");
-        item.setOriginalPrice(5000);
-        item.setPrice(1000);
-        item.setStockQuantity(25);
-        itemRepository.save(item);
+        ItemRequestDto requestDto = createItemRequestDto();
 
         // when
-        Item foundItem = itemService.findOne(item.getId());
+        Long savedItemId = itemService.saveItem(requestDto);
 
         // then
+        ItemResponseDto foundItem = itemService.findItem(savedItemId);
         assertNotNull(foundItem);
-        assertEquals("CupRice", foundItem.getName());
-    }
-
-    @Test
-    public void findAllTest() {
-        // given
-        Item item1 = new Item();
-        item1.setName("Bread");
-        item1.setOriginalPrice(3000);
-        item1.setPrice(2500);
-        item1.setStockQuantity(50);
-        itemRepository.save(item1);
-
-        Item item2 = new Item();
-        item2.setName("Butter");
-        item2.setOriginalPrice(7000);
-        item2.setPrice(6500);
-        item2.setStockQuantity(30);
-        itemRepository.save(item2);
-
-        // when
-        List<Item> items = itemService.findItems();
-
-        // then
-        assertEquals(2, items.size());
+        assertEquals("Test Item", foundItem.getName());
+        assertEquals(10000, foundItem.getOriginalPrice());
+        assertEquals(8000, foundItem.getPrice());
     }
 
     /**
-     * 3. 상품 수정 테스트
+     * 2. 상품 수정 테스트
      */
     @Test
     public void updateItemTest() {
         // given
-        Item item = new Item();
-        item.setName("Cheese");
-        item.setOriginalPrice(10000);
-        item.setPrice(8000);
-        item.setStockQuantity(10);
-        item.setStartDate(LocalDateTime.now());
-        item.setEndDate(LocalDateTime.now().plusDays(7));
-        itemRepository.save(item);
+        Long savedItemId = itemService.saveItem(createItemRequestDto());
+
+        ItemRequestDto updateRequestDto = new ItemRequestDto();
+        updateRequestDto.setName("Updated Test Item");
+        updateRequestDto.setOriginalPrice(12000);
+        updateRequestDto.setPrice(10000);
+        updateRequestDto.setStockQuantity(5);
+        updateRequestDto.setStartDate("2025-02-15 21:00:00");
+        updateRequestDto.setEndDate("2025-02-15 23:00:00");
 
         // when
-        itemService.update(item.getId(), "Premium Cheese", 12000, 10000, 5,
-                "2025-02-12 10:00:00", "2025-02-20 10:00:00");
+        itemService.updateItem(savedItemId, updateRequestDto);
 
         // then
-        Item updatedItem = itemService.findOne(item.getId());
-        assertEquals("Premium Cheese", updatedItem.getName());
+        ItemResponseDto updatedItem = itemService.findItem(savedItemId);
+        assertEquals("Updated Test Item", updatedItem.getName());
         assertEquals(12000, updatedItem.getOriginalPrice());
         assertEquals(10000, updatedItem.getPrice());
         assertEquals(5, updatedItem.getStockQuantity());
+
+        // LocalDateTime을 포맷 변경 없이 그대로 가져오기
+        String actualStartDate = updatedItem.getStartDate().replace("T", " ") + ":00";
+        String actualEndDate = updatedItem.getEndDate().replace("T", " ") + ":00";
+
+        // 기대하는 날짜 값
+        String expectedStartDate = "2025-02-15 21:00:00";
+        String expectedEndDate = "2025-02-15 23:00:00";
+
+        // 문자열 그대로 비교
+        assertEquals(expectedStartDate, actualStartDate);
+        assertEquals(expectedEndDate, actualEndDate);
     }
 
     /**
-     * 4. 상품 재고 수정 테스트
+     * 3. 상품 조회 테스트
      */
     @Test
-    public void updateStockTest() {
+    public void findItemTest() {
         // given
-        Item item = new Item();
-        item.setName("Yogurt");
-        item.setOriginalPrice(4500);
-        item.setPrice(4000);
-        item.setStockQuantity(20);
-        itemRepository.save(item);
+        Long savedItemId = itemService.saveItem(createItemRequestDto());
 
         // when
-        itemService.updateStock(item, 5);
+        ItemResponseDto foundItem = itemService.findItem(savedItemId);
 
         // then
-        Item updatedItem = itemService.findOne(item.getId());
-        assertEquals(15, updatedItem.getStockQuantity());
+        assertNotNull(foundItem);
+        assertEquals("Test Item", foundItem.getName());
+        assertEquals(10000, foundItem.getOriginalPrice());
+        assertEquals(8000, foundItem.getPrice());
     }
 
     /**
-     * 5. 재고 부족 예외 테스트
+     * 4. 전체 상품 조회 테스트
      */
     @Test
-    public void updateStock_throwsExceptionWhenNotEnoughStock() {
+    public void findAllItemsTest() {
         // given
-        Item item = new Item();
-        item.setName("Chocolate");
-        item.setOriginalPrice(5500);
-        item.setPrice(5000);
-        item.setStockQuantity(5);
-        itemRepository.save(item);
+        itemService.saveItem(createItemRequestDto("Item 1"));
+        itemService.saveItem(createItemRequestDto("Item 2"));
+
+        // when
+        List<ItemResponseDto> items = itemService.findAllItems();
+
+        // then
+        assertEquals(2, items.size());
+        assertEquals("Item 1", items.get(0).getName());
+        assertEquals("Item 2", items.get(1).getName());
+    }
+
+    /**
+     * 5. 상품 재고 수정 테스트
+     */
+    @Test
+    public void updateItemStockTest() {
+        // given
+        Long savedItemId = itemService.saveItem(createItemRequestDto());
+
+        // when
+        itemService.updateItemStock(savedItemId, 3);
+        ItemResponseDto updatedItem = itemService.findItem(savedItemId);
+
+        // then
+        assertEquals(7, updatedItem.getStockQuantity());
+    }
+
+    /**
+     * 6. 재고 부족 예외 테스트
+     */
+    @Test
+    public void updateItemStock_throwsExceptionWhenNotEnoughStock() {
+        // given
+        Long savedItemId = itemService.saveItem(createItemRequestDto());
 
         // then
         assertThrows(NotEnoughStockException.class, () -> {
-            itemService.updateStock(item, 10);  // 재고 부족 테스트
+            itemService.updateItemStock(savedItemId, 15);  // 재고 부족 테스트
         });
+    }
+
+    /**
+     * 테스트에서 중복되는 ItemRequestDto 생성 메서드
+     */
+    private ItemRequestDto createItemRequestDto() {
+        return createItemRequestDto("Test Item");
+    }
+
+    private ItemRequestDto createItemRequestDto(String name) {
+        ItemRequestDto requestDto = new ItemRequestDto();
+        requestDto.setName(name);
+        requestDto.setOriginalPrice(10000);
+        requestDto.setPrice(8000);
+        requestDto.setStockQuantity(10);
+        requestDto.setStartDate("2025-02-12 21:00:00");
+        requestDto.setEndDate("2025-02-12 23:00:00");
+        return requestDto;
     }
 }
